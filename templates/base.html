@@ -154,10 +154,12 @@
             </div>
         </div>
 
-        <!-- ========== 搭子匹配 ========== -->
+        <!-- ========== 搭子匹配 + 好友 ========== -->
         <div id="page-partner" class="page-container" style="display:none;">
             <div class="partner-layout">
+                <!-- 左侧栏 -->
                 <div>
+                    <!-- 个人资料 -->
                     <div class="profile-card">
                         <div class="profile-avatar">😎</div>
                         <div class="profile-nickname" id="profile-nickname">加载中...</div>
@@ -165,6 +167,21 @@
                         <div class="tags-container" id="profile-tags"></div>
                         <button class="btn btn-outline btn-sm" onclick="editProfile()" style="margin-top:8px;">✏️ 编辑资料</button>
                     </div>
+                    <!-- 好友请求 -->
+                    <div class="card invite-section" style="margin-top:16px;">
+                        <h3 style="margin-bottom:12px;">👋 好友请求 <span id="friend-req-badge" class="chat-badge" style="display:none;">0</span></h3>
+                        <div id="friend-req-list">
+                            <p style="color:var(--text-muted);font-size:13px;">加载中...</p>
+                        </div>
+                    </div>
+                    <!-- 好友列表 -->
+                    <div class="card invite-section" style="margin-top:16px;">
+                        <h3 style="margin-bottom:12px;">👥 我的好友 <span id="friend-count" style="font-size:12px;color:var(--text-muted);"></span></h3>
+                        <div id="friend-list">
+                            <p style="color:var(--text-muted);font-size:13px;">加载中...</p>
+                        </div>
+                    </div>
+                    <!-- 组队邀请 -->
                     <div class="card invite-section" style="margin-top:16px;">
                         <h3 style="margin-bottom:12px;">📨 组队邀请</h3>
                         <div id="invite-list">
@@ -179,17 +196,44 @@
                         </div>
                     </div>
                 </div>
-                <div class="card">
-                    <div class="card-header">
-                        <h2>🤝 搭子匹配</h2>
-                        <span id="partner-todo-hint" style="font-size:12px;color:var(--text-muted);"></span>
+                <!-- 右侧：标签页 -->
+                <div>
+                    <!-- 标签切换 -->
+                    <div class="tab-nav">
+                        <button class="tab-btn active" onclick="switchPartnerTab('partner')">🤝 搭子匹配</button>
+                        <button class="tab-btn" onclick="switchPartnerTab('friends')">🔍 搜索好友</button>
                     </div>
-                    <div id="match-list">
-                        <p style="color:var(--text-muted);text-align:center;padding:40px;">点击"匹配搭子"查找志同道合的伙伴</p>
+                    <!-- 搭子匹配面板 -->
+                    <div id="tab-partner" class="tab-content">
+                        <div class="card">
+                            <div class="card-header">
+                                <h2>🤝 搭子匹配</h2>
+                                <span id="partner-todo-hint" style="font-size:12px;color:var(--text-muted);"></span>
+                            </div>
+                            <div id="match-list">
+                                <p style="color:var(--text-muted);text-align:center;padding:40px;">点击"匹配搭子"查找志同道合的伙伴</p>
+                            </div>
+                            <button class="btn btn-primary btn-block" onclick="doMatch()" style="margin-top:16px;">
+                                🔍 匹配搭子
+                            </button>
+                        </div>
                     </div>
-                    <button class="btn btn-primary btn-block" onclick="doMatch()" style="margin-top:16px;">
-                        🔍 匹配搭子
-                    </button>
+                    <!-- 搜索好友面板 -->
+                    <div id="tab-friends" class="tab-content" style="display:none;">
+                        <div class="card">
+                            <div class="card-header">
+                                <h2>🔍 搜索好友</h2>
+                            </div>
+                            <div class="search-bar">
+                                <input type="text" id="friend-search-input" class="form-input" placeholder="输入用户名或昵称搜索..."
+                                       onkeydown="if(event.key==='Enter')searchUsers()">
+                                <button class="btn btn-primary btn-sm" onclick="searchUsers()">搜索</button>
+                            </div>
+                            <div id="user-search-results">
+                                <p style="color:var(--text-muted);text-align:center;padding:20px;">输入关键词搜索用户</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 

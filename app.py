@@ -128,6 +128,27 @@ def init_db():
             FOREIGN KEY (from_user_id) REFERENCES users(id),
             FOREIGN KEY (to_user_id) REFERENCES users(id)
         );
+
+        CREATE TABLE IF NOT EXISTS friend_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            from_user_id INTEGER NOT NULL,
+            to_user_id INTEGER NOT NULL,
+            status TEXT DEFAULT 'pending',
+            created_at TEXT DEFAULT (datetime('now','localtime')),
+            FOREIGN KEY (from_user_id) REFERENCES users(id),
+            FOREIGN KEY (to_user_id) REFERENCES users(id),
+            UNIQUE(from_user_id, to_user_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS friends (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            friend_id INTEGER NOT NULL,
+            created_at TEXT DEFAULT (datetime('now','localtime')),
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            FOREIGN KEY (friend_id) REFERENCES users(id),
+            UNIQUE(user_id, friend_id)
+        );
     ''')
 
     # 创建默认管理员账号 (admin / 123456)
@@ -826,6 +847,193 @@ def api_send_message():
     )
     db.commit()
     return jsonify({'message': '发送成功'}), 201
+
+# ---------------------------------------------------------------------------
+# 模块八：好友系统 API
+# ---------------------------------------------------------------------------
+@app.route('/api/users/search', methods=['GET'])
+@login_required
+def api_search_users():
+    """搜索用户（按用户名或昵称）"""
+    q = request.args.get('q', '').strip()
+    if not q or len(q) < 1:
+        return jsonify({'users': []})
+
+    db = get_db()
+    users = db.execute('''
+        SELECT id, username, nickname, interest_tags, is_online, last_active
+        FROM users
+        WHERE id != ? AND (username LIKE ? OR nickname LIKE ?)
+        LIMIT 20
+    ''', (session['user_id'], f'%{q}%', f'%{q}%')).fetchall()
+
+    # 标记是否已发送好友请求或已是好友
+    result = []
+    for u in users:
+        user_data = dict(u)
+        # 检查是否已是好友
+        is_friend = db.execute(
+            "SELECT id FROM friends WHERE (user_id=? AND friend_id=?) OR (user_id=? AND friend_id=?)",
+            (session['user_id'], u['id'], u['id'], session['user_id'])
+        ).fetchone()
+        user_data['is_friend'] = bool(is_friend)
+
+        # 检查是否有待处理请求
+        pending_req = db.execute(
+            "SELECT id, status FROM friend_requests WHERE from_user_id=? AND to_user_id=? AND status='pending'",
+            (session['user_id'], u['id'])
+        ).fetchone()
+        user_data['request_sent'] = bool(pending_req)
+
+        pending_recv = db.execute(
+            "SELECT id, status FROM friend_requests WHERE from_user_id=? AND to_user_id=? AND status='pending'",
+            (u['id'], session['user_id'])
+        ).fetchone()
+        user_data['request_received'] = bool(pending_recv)
+
+        result.append(user_data)
+
+    return jsonify({'users': result})
+
+@app.route('/api/friends', methods=['GET'])
+@login_required
+def api_get_friends():
+    """获取我的好友列表"""
+    db = get_db()
+    friends = db.execute('''
+        SELECT u.id, u.username, u.nickname, u.interest_tags, u.is_online, u.last_active,
+               f.created_at as friend_since
+        FROM friends f
+        JOIN users u ON (f.friend_id = u.id AND f.user_id = ?)
+            OR (f.user_id = u.id AND f.friend_id = ?)
+        WHERE u.id != ?
+        ORDER BY f.created_at DESC
+    ''', (session['user_id'], session['user_id'], session['user_id'])).fetchall()
+    return jsonify([dict(row) for row in friends])
+
+@app.route('/api/friends/request', methods=['POST'])
+@login_required
+def api_send_friend_request():
+    """发送好友请求"""
+    data = request.json
+    to_user_id = data.get('to_user_id')
+
+    if not to_user_id:
+        return jsonify({'error': '目标用户不能为空'}), 400
+    if int(to_user_id) == session['user_id']:
+        return jsonify({'error': '不能添加自己为好友'}), 400
+
+    db = get_db()
+    # 检查是否已是好友
+    existing = db.execute(
+        "SELECT id FROM friends WHERE (user_id=? AND friend_id=?) OR (user_id=? AND friend_id=?)",
+        (session['user_id'], to_user_id, to_user_id, session['user_id'])
+    ).fetchone()
+    if existing:
+        return jsonify({'error': '你们已经是好友了'}), 409
+
+    # 检查是否有待处理请求
+    pending = db.execute(
+        "SELECT id FROM friend_requests WHERE from_user_id=? AND to_user_id=? AND status='pending'",
+        (session['user_id'], to_user_id)
+    ).fetchone()
+    if pending:
+        return jsonify({'error': '已发送过好友请求'}), 409
+
+    # 如果对方已向我发送请求，自动接受
+    reverse = db.execute(
+        "SELECT id FROM friend_requests WHERE from_user_id=? AND to_user_id=? AND status='pending'",
+        (to_user_id, session['user_id'])
+    ).fetchone()
+    if reverse:
+        db.execute("UPDATE friend_requests SET status='accepted' WHERE id=?", (reverse['id'],))
+        db.execute("INSERT OR IGNORE INTO friends (user_id, friend_id) VALUES (?, ?)",
+                   (session['user_id'], to_user_id))
+        db.execute("INSERT OR IGNORE INTO friends (user_id, friend_id) VALUES (?, ?)",
+                   (to_user_id, session['user_id']))
+        db.commit()
+        return jsonify({'message': '你们互相申请，已成为好友！'}), 201
+
+    try:
+        db.execute(
+            "INSERT INTO friend_requests (from_user_id, to_user_id) VALUES (?, ?)",
+            (session['user_id'], to_user_id)
+        )
+        db.commit()
+    except Exception:
+        return jsonify({'error': '请求失败，可能已发送过'}), 409
+
+    return jsonify({'message': '好友请求已发送'}), 201
+
+@app.route('/api/friends/requests', methods=['GET'])
+@login_required
+def api_get_friend_requests():
+    """获取好友请求列表"""
+    db = get_db()
+
+    received = db.execute('''
+        SELECT fr.*, u.username, u.nickname, u.interest_tags
+        FROM friend_requests fr
+        JOIN users u ON fr.from_user_id = u.id
+        WHERE fr.to_user_id = ? AND fr.status = 'pending'
+        ORDER BY fr.created_at DESC
+    ''', (session['user_id'],)).fetchall()
+
+    sent = db.execute('''
+        SELECT fr.*, u.username, u.nickname
+        FROM friend_requests fr
+        JOIN users u ON fr.to_user_id = u.id
+        WHERE fr.from_user_id = ? AND fr.status = 'pending'
+        ORDER BY fr.created_at DESC
+    ''', (session['user_id'],)).fetchall()
+
+    return jsonify({
+        'received': [dict(row) for row in received],
+        'sent': [dict(row) for row in sent]
+    })
+
+@app.route('/api/friends/requests/<int:req_id>', methods=['PUT'])
+@login_required
+def api_respond_friend_request(req_id):
+    """响应好友请求（接受/拒绝）"""
+    data = request.json
+    action = data.get('action')  # 'accept' or 'reject'
+
+    if action not in ('accept', 'reject'):
+        return jsonify({'error': '无效操作'}), 400
+
+    db = get_db()
+    req = db.execute(
+        "SELECT * FROM friend_requests WHERE id=? AND to_user_id=? AND status='pending'",
+        (req_id, session['user_id'])
+    ).fetchone()
+    if not req:
+        return jsonify({'error': '请求不存在或已处理'}), 404
+
+    if action == 'accept':
+        db.execute("UPDATE friend_requests SET status='accepted' WHERE id=?", (req_id,))
+        db.execute("INSERT OR IGNORE INTO friends (user_id, friend_id) VALUES (?, ?)",
+                   (req['from_user_id'], req['to_user_id']))
+        db.execute("INSERT OR IGNORE INTO friends (user_id, friend_id) VALUES (?, ?)",
+                   (req['to_user_id'], req['from_user_id']))
+        db.commit()
+        return jsonify({'message': '已接受好友请求'})
+    else:
+        db.execute("UPDATE friend_requests SET status='rejected' WHERE id=?", (req_id,))
+        db.commit()
+        return jsonify({'message': '已拒绝好友请求'})
+
+@app.route('/api/friends/<int:friend_id>', methods=['DELETE'])
+@login_required
+def api_remove_friend(friend_id):
+    """删除好友"""
+    db = get_db()
+    db.execute(
+        "DELETE FROM friends WHERE (user_id=? AND friend_id=?) OR (user_id=? AND friend_id=?)",
+        (session['user_id'], friend_id, friend_id, session['user_id'])
+    )
+    db.commit()
+    return jsonify({'message': '已删除好友'})
 
 # ---------------------------------------------------------------------------
 # 启动应用
