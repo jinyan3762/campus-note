@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block content %}
+<div id="page-partner" class="page-container" style="display:none;">
+    <div class="partner-layout">
+        <!-- 左侧：个人资料卡 -->
+        <div>
+            <div class="profile-card">
+                <div class="profile-avatar">😎</div>
+                <div class="profile-nickname" id="profile-nickname">加载中...</div>
+                <div class="profile-username" id="profile-username"></div>
+                <div class="tags-container" id="profile-tags"></div>
+                <button class="btn btn-outline btn-sm" onclick="editProfile()" style="margin-top:8px;">✏️ 编辑资料</button>
+            </div>
+
+            <!-- 邀请列表 -->
+            <div class="card invite-section" style="margin-top:16px;">
+                <h3 style="margin-bottom:12px;">📨 组队邀请</h3>
+                <div id="invite-list">
+                    <p style="color:var(--text-muted);font-size:13px;">加载中...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧：匹配结果 -->
+        <div class="card">
+            <div class="card-header">
+                <h2>🤝 搭子匹配</h2>
+                <span id="partner-todo-hint" style="font-size:12px;color:var(--text-muted);"></span>
+            </div>
+            <div id="match-list">
+                <p style="color:var(--text-muted);text-align:center;padding:40px;">点击"匹配搭子"查找志同道合的伙伴</p>
+            </div>
+            <button class="btn btn-primary btn-block" onclick="doMatch()" style="margin-top:16px;">
+                🔍 匹配搭子
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
