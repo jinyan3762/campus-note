@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>校园记 - CampusNote</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- 顶部导航栏 -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-brand">
+            <span class="nav-logo">📒</span>
+            <span class="nav-title">校园记</span>
+        </div>
+        <div class="nav-links" id="nav-links">
+            <a href="#dashboard" class="nav-link" data-page="dashboard">🏠 主控面板</a>
+            <a href="#forum" class="nav-link" data-page="forum">💬 校园论坛</a>
+            <a href="#notepad" class="nav-link" data-page="notepad">📝 记事本</a>
+            <a href="#schedule" class="nav-link" data-page="schedule">📅 课表查询</a>
+            <a href="#todo" class="nav-link" data-page="todo">✅ 待办转盘</a>
+            <a href="#partner" class="nav-link" data-page="partner">🤝 搭子匹配</a>
+        </div>
+        <div class="nav-user">
+            <span class="user-greeting" id="user-greeting"></span>
+            <button class="btn btn-sm btn-outline" onclick="logout()">退出</button>
+        </div>
+    </nav>
+
+    <!-- 主内容区 -->
+    <main class="main-content" id="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Toast 提示 -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/auth.js"></script>
+    <script src="/static/js/forum.js"></script>
+    <script src="/static/js/notepad.js"></script>
+    <script src="/static/js/schedule.js"></script>
+    <script src="/static/js/todo.js"></script>
+    <script src="/static/js/partner.js"></script>
+    <script>
+        // 全局路由系统
+        let currentUser = null;
+
+        async function checkAuth() {
+            try {
+                const resp = await fetch('/api/user/profile');
+                if (resp.ok) {
+                    currentUser = await resp.json();
+                    document.getElementById('user-greeting').textContent =
+                        `👋 ${currentUser.nickname || currentUser.username}`;
+                    return true;
+                }
+            } catch (e) {}
+            return false;
+        }
+
+        function logout() {
+            fetch('/api/logout').then(() => {
+                window.location.href = '/';
+            });
+        }
+
+        // Hash 路由处理
+        function handleRoute() {
+            const hash = window.location.hash.slice(1) || 'dashboard';
+            const isLoggedIn = !!currentUser;
+
+            if (!isLoggedIn && hash !== 'login') {
+                window.location.href = '/';
+                return;
+            }
+
+            // 隐藏所有页面
+            document.querySelectorAll('.page-container').forEach(el => {
+                el.style.display = 'none';
+            });
+
+            // 显示目标页面
+            const target = document.getElementById(`page-${hash}`);
+            if (target) {
+                target.style.display = 'block';
+            }
+
+            // 激活导航链接
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.toggle('active', link.dataset.page === hash);
+            });
+
+            // 触发页面加载
+            switch (hash) {
+                case 'dashboard': loadDashboard(); break;
+                case 'forum': loadForum(); break;
+                case 'notepad': loadNotepad(); break;
+                case 'schedule': loadSchedule(); break;
+                case 'todo': loadTodo(); break;
+                case 'partner': loadPartner(); break;
+            }
+        }
+
+        window.addEventListener('hashchange', handleRoute);
+
+        // 初始加载
+        (async () => {
+            const ok = await checkAuth();
+            if (!ok) {
+                window.location.href = '/';
+                return;
+            }
+            handleRoute();
+        })();
+    </script>
+</body>
+</html>

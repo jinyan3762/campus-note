@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>校园记 - CampusNote</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="auth-wrapper">
+        <div class="auth-card">
+            <div class="auth-header">
+                <div class="auth-logo">📒</div>
+                <h1>校园记</h1>
+                <p class="auth-subtitle">专为大学生设计的一站式本地效率工具</p>
+            </div>
+
+            <!-- 登录表单 -->
+            <div id="auth-login-form">
+                <h2>登录</h2>
+                <div class="form-group">
+                    <label>用户名</label>
+                    <input type="text" id="login-username" class="form-input" placeholder="请输入用户名">
+                </div>
+                <div class="form-group">
+                    <label>密码</label>
+                    <input type="password" id="login-password" class="form-input" placeholder="请输入密码" onkeydown="if(event.key==='Enter')doLogin()">
+                </div>
+                <button class="btn btn-primary btn-block" onclick="doLogin()">登录</button>
+                <p class="auth-switch">
+                    还没有账号？<a href="javascript:void(0)" onclick="showRegister()">立即注册</a>
+                </p>
+                <p class="auth-hint">测试账号: admin / 123456</p>
+            </div>
+
+            <!-- 注册表单 -->
+            <div id="auth-register-form" style="display:none;">
+                <h2>注册</h2>
+                <div class="form-group">
+                    <label>用户名</label>
+                    <input type="text" id="reg-username" class="form-input" placeholder="2-20位字符">
+                </div>
+                <div class="form-group">
+                    <label>密码</label>
+                    <input type="password" id="reg-password" class="form-input" placeholder="至少4位密码" onkeydown="if(event.key==='Enter')doRegister()">
+                </div>
+                <button class="btn btn-primary btn-block" onclick="doRegister()">注册</button>
+                <p class="auth-switch">
+                    已有账号？<a href="javascript:void(0)" onclick="showLogin()">返回登录</a>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast 提示 -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="/static/js/api.js"></script>
+    <script>
+        function showRegister() {
+            document.getElementById('auth-login-form').style.display = 'none';
+            document.getElementById('auth-register-form').style.display = 'block';
+        }
+
+        function showLogin() {
+            document.getElementById('auth-register-form').style.display = 'none';
+            document.getElementById('auth-login-form').style.display = 'block';
+        }
+
+        async function doLogin() {
+            const username = document.getElementById('login-username').value.trim();
+            const password = document.getElementById('login-password').value;
+
+            if (!username || !password) {
+                showToast('请填写用户名和密码', 'error');
+                return;
+            }
+
+            try {
+                const resp = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await resp.json();
+                if (resp.ok) {
+                    showToast('登录成功！', 'success');
+                    setTimeout(() => { window.location.href = '/dashboard'; }, 500);
+                } else {
+                    showToast(data.error || '登录失败', 'error');
+                }
+            } catch (e) {
+                showToast('网络错误', 'error');
+            }
+        }
+
+        async function doRegister() {
+            const username = document.getElementById('reg-username').value.trim();
+            const password = document.getElementById('reg-password').value;
+
+            if (!username || !password) {
+                showToast('请填写用户名和密码', 'error');
+                return;
+            }
+            if (username.length < 2) {
+                showToast('用户名至少2位', 'error');
+                return;
+            }
+            if (password.length < 4) {
+                showToast('密码至少4位', 'error');
+                return;
+            }
+
+            try {
+                const resp = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await resp.json();
+                if (resp.ok) {
+                    showToast('注册成功，请登录', 'success');
+                    showLogin();
+                    document.getElementById('login-username').value = username;
+                } else {
+                    showToast(data.error || '注册失败', 'error');
+                }
+            } catch (e) {
+                showToast('网络错误', 'error');
+            }
+        }
+
+        // 页面加载时检查是否已登录
+        (async () => {
+            try {
+                const resp = await fetch('/api/user/profile');
+                if (resp.ok) {
+                    window.location.href = '/dashboard';
+                }
+            } catch (e) {}
+        })();
+    </script>
+</body>
+</html>

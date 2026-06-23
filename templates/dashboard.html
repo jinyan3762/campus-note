@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+<div id="page-dashboard" class="page-container" style="display:block;">
+    <div class="dashboard-header">
+        <h1>欢迎回来，<span id="dash-username">同学</span>！👋</h1>
+        <p class="dash-date" id="dash-date"></p>
+    </div>
+
+    <!-- 功能卡片网格 -->
+    <div class="dash-cards">
+        <div class="dash-card" onclick="window.location.hash='forum'">
+            <div class="dash-card-icon">💬</div>
+            <h3>校园论坛</h3>
+            <p>发帖交流，分享校园生活</p>
+        </div>
+        <div class="dash-card" onclick="window.location.hash='notepad'">
+            <div class="dash-card-icon">📝</div>
+            <h3>记事本</h3>
+            <p>记录灵感，管理学习笔记</p>
+        </div>
+        <div class="dash-card" onclick="window.location.hash='schedule'">
+            <div class="dash-card-icon">📅</div>
+            <h3>课表查询</h3>
+            <p>可视化课程安排与管理</p>
+        </div>
+        <div class="dash-card" onclick="window.location.hash='todo'">
+            <div class="dash-card-icon">🎯</div>
+            <h3>待办转盘</h3>
+            <p>管理待办，转盘决策执行</p>
+        </div>
+        <div class="dash-card" onclick="window.location.hash='partner'">
+            <div class="dash-card-icon">🤝</div>
+            <h3>搭子匹配</h3>
+            <p>寻找志同道合的伙伴</p>
+        </div>
+    </div>
+
+    <!-- 快捷统计 -->
+    <div class="quick-stats" id="quick-stats">
+        <div class="stat-item">
+            <span class="stat-num" id="stat-posts">-</span>
+            <span class="stat-label">论坛帖子</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-num" id="stat-notes">-</span>
+            <span class="stat-label">笔记</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-num" id="stat-todos">-</span>
+            <span class="stat-label">待办事项</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-num" id="stat-courses">-</span>
+            <span class="stat-label">课程</span>
+        </div>
+    </div>
+</div>
+{% endblock %}
