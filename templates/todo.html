@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<div id="page-todo" class="page-container" style="display:none;">
+    <div class="todo-layout">
+        <!-- 左侧：待办列表 -->
+        <div class="card">
+            <div class="card-header">
+                <h2>✅ 待办事项</h2>
+                <button class="btn btn-primary btn-sm" onclick="showAddTodo()">添加待办</button>
+            </div>
+            <div class="todo-list" id="todo-list">
+                <p style="color:var(--text-muted);text-align:center;">加载中...</p>
+            </div>
+        </div>
+
+        <!-- 右侧：转盘 -->
+        <div class="card wheel-container">
+            <h2 style="margin-bottom:12px;">🎯 随机决策转盘</h2>
+            <div class="wheel-canvas-wrapper">
+                <div class="wheel-pointer"></div>
+                <canvas id="wheel-canvas" width="320" height="320"></canvas>
+            </div>
+            <div class="wheel-result" id="wheel-result"></div>
+            <button class="btn btn-primary" id="spin-btn" onclick="spinWheel()" style="margin-top:12px;">
+                🎰 随机抽取
+            </button>
+            <p style="font-size:12px;color:var(--text-muted);margin-top:8px;">
+                提示：转盘中的事项来自你的待办列表
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}
