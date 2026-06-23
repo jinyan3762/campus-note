@@ -20,6 +20,9 @@ async function loadPartner() {
 
     // 加载邀请列表
     await loadInvitations();
+
+    // 加载聊天联系人
+    await loadChatContacts();
 }
 
 async function updateProfileCard() {
@@ -175,10 +178,134 @@ async function respondInvite(inviteId, status) {
             body: JSON.stringify({ status })
         });
         if (resp.ok) {
-            showToast(status === 'accepted' ? '已接受邀请！' : '已拒绝邀请', 'success');
+            showToast(status === 'accepted' ? '已接受邀请！开启聊天吧~' : '已拒绝邀请', 'success');
             loadInvitations();
+            loadChatContacts();
         }
     } catch (e) {
         showToast('操作失败', 'error');
+    }
+}
+
+// ============================================================
+// 聊天功能
+// ============================================================
+let chatPartnerId = null;
+let chatPartnerName = '';
+let chatRefreshTimer = null;
+
+async function loadChatContacts() {
+    const container = document.getElementById('chat-contacts');
+    try {
+        const resp = await fetch('/api/chat/contacts');
+        if (resp.ok) {
+            const contacts = await resp.json();
+            if (contacts.length === 0) {
+                container.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">接受邀请后可在此聊天</p>';
+            } else {
+                container.innerHTML = contacts.map(c => `
+                    <div class="chat-contact-item" onclick="openChat(${c.id}, '${escapeHtml(c.nickname || c.username)}')">
+                        <div class="contact-avatar">💬</div>
+                        <div class="contact-info">
+                            <div class="contact-name">
+                                ${escapeHtml(c.nickname || c.username)}
+                                <span class="online-dot ${c.is_online ? 'online' : 'offline'}" style="margin-left:4px;"></span>
+                            </div>
+                            <div class="contact-status">${c.is_online ? '在线' : '离线'}</div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+    } catch (e) {
+        container.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">加载失败</p>';
+    }
+}
+
+function openChat(partnerId, partnerName) {
+    chatPartnerId = partnerId;
+    chatPartnerName = partnerName;
+
+    document.getElementById('chat-partner-name').textContent = '💬 ' + partnerName;
+    document.getElementById('chat-window').style.display = 'flex';
+    document.getElementById('chat-messages').innerHTML =
+        '<p style="color:var(--text-muted);text-align:center;">加载消息中...</p>';
+
+    loadChatMessages();
+
+    // 每3秒自动刷新消息
+    if (chatRefreshTimer) clearInterval(chatRefreshTimer);
+    chatRefreshTimer = setInterval(loadChatMessages, 3000);
+}
+
+function closeChat() {
+    document.getElementById('chat-window').style.display = 'none';
+    chatPartnerId = null;
+    chatPartnerName = '';
+    if (chatRefreshTimer) {
+        clearInterval(chatRefreshTimer);
+        chatRefreshTimer = null;
+    }
+}
+
+async function loadChatMessages() {
+    if (!chatPartnerId) return;
+
+    const container = document.getElementById('chat-messages');
+    try {
+        const resp = await fetch(`/api/chat/messages/${chatPartnerId}`);
+        if (resp.ok) {
+            const messages = await resp.json();
+            if (messages.length === 0) {
+                container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">还没有消息，打个招呼吧~</p>';
+            } else {
+                // 保持滚动位置
+                const wasAtBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 20;
+
+                container.innerHTML = messages.map(msg => {
+                    const isMine = msg.from_user_id === (currentUser ? currentUser.id : -1);
+                    return `
+                        <div class="chat-msg ${isMine ? 'mine' : 'theirs'}">
+                            ${!isMine ? `<div class="msg-sender">${escapeHtml(msg.from_nickname || msg.from_username)}</div>` : ''}
+                            <div>${escapeHtml(msg.content)}</div>
+                            <div class="msg-time">${formatTime(msg.created_at)}</div>
+                        </div>
+                    `;
+                }).join('');
+
+                if (wasAtBottom) {
+                    container.scrollTop = container.scrollHeight;
+                }
+            }
+        }
+    } catch (e) {
+        container.innerHTML = '<p style="color:var(--text-muted);text-align:center;">加载失败</p>';
+    }
+}
+
+async function sendChatMessage() {
+    const input = document.getElementById('chat-input');
+    const content = input.value.trim();
+
+    if (!content || !chatPartnerId) return;
+
+    try {
+        const resp = await fetch('/api/chat/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ to_user_id: chatPartnerId, content })
+        });
+        if (resp.ok) {
+            input.value = '';
+            await loadChatMessages();
+            // 滚动到底部
+            const container = document.getElementById('chat-messages');
+            container.scrollTop = container.scrollHeight;
+        } else {
+            const data = await resp.json();
+            showToast(data.error || '发送失败', 'error');
+        }
+    } catch (e) {
+        showToast('网络错误', 'error');
     }
 }

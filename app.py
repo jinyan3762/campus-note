@@ -118,6 +118,16 @@ def init_db():
             FOREIGN KEY (to_user_id) REFERENCES users(id),
             FOREIGN KEY (todo_id) REFERENCES todos(id)
         );
+
+        CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            from_user_id INTEGER NOT NULL,
+            to_user_id INTEGER NOT NULL,
+            content TEXT NOT NULL,
+            created_at TEXT DEFAULT (datetime('now','localtime')),
+            FOREIGN KEY (from_user_id) REFERENCES users(id),
+            FOREIGN KEY (to_user_id) REFERENCES users(id)
+        );
     ''')
 
     # 创建默认管理员账号 (admin / 123456)
@@ -745,6 +755,77 @@ def api_respond_invite(invite_id):
     db.execute("UPDATE invitations SET status = ? WHERE id = ?", (status, invite_id))
     db.commit()
     return jsonify({'message': '已' + ('接受' if status == 'accepted' else '拒绝') + '邀请'})
+
+# ---------------------------------------------------------------------------
+# 模块七：聊天交流 API
+# ---------------------------------------------------------------------------
+@app.route('/api/chat/contacts', methods=['GET'])
+@login_required
+def api_get_chat_contacts():
+    """获取可聊天的联系人列表（互相接受邀请的搭子）"""
+    db = get_db()
+    # 我接受的邀请 + 对方接受我的邀请
+    contacts = db.execute('''
+        SELECT DISTINCT u.id, u.username, u.nickname, u.interest_tags, u.is_online
+        FROM users u
+        WHERE u.id IN (
+            -- 我接受了的邀请的发起方
+            SELECT from_user_id FROM invitations
+            WHERE to_user_id = ? AND status = 'accepted'
+            UNION
+            -- 接受了我的邀请的用户
+            SELECT to_user_id FROM invitations
+            WHERE from_user_id = ? AND status = 'accepted'
+        )
+    ''', (session['user_id'], session['user_id'])).fetchall()
+    return jsonify([dict(row) for row in contacts])
+
+@app.route('/api/chat/messages/<int:partner_id>', methods=['GET'])
+@login_required
+def api_get_messages(partner_id):
+    """获取与某搭子的聊天记录"""
+    db = get_db()
+    messages = db.execute('''
+        SELECT m.*, u.username as from_username, u.nickname as from_nickname
+        FROM messages m JOIN users u ON m.from_user_id = u.id
+        WHERE (m.from_user_id = ? AND m.to_user_id = ?)
+           OR (m.from_user_id = ? AND m.to_user_id = ?)
+        ORDER BY m.created_at ASC
+        LIMIT 200
+    ''', (session['user_id'], partner_id, partner_id, session['user_id'])).fetchall()
+    return jsonify([dict(row) for row in messages])
+
+@app.route('/api/chat/send', methods=['POST'])
+@login_required
+def api_send_message():
+    """发送消息给搭子"""
+    data = request.json
+    to_user_id = data.get('to_user_id')
+    content = data.get('content', '').strip()
+
+    if not to_user_id or not content:
+        return jsonify({'error': '参数不完整'}), 400
+
+    db = get_db()
+    # 验证双方是否已建立搭子关系
+    relation = db.execute('''
+        SELECT id FROM invitations
+        WHERE status = 'accepted'
+        AND (
+            (from_user_id = ? AND to_user_id = ?)
+            OR (from_user_id = ? AND to_user_id = ?)
+        )
+    ''', (session['user_id'], to_user_id, to_user_id, session['user_id'])).fetchone()
+
+    if not relation:
+        return jsonify({'error': '你们还不是搭子，无法发送消息'}), 403
+
+    db.execute(
+        "INSERT INTO messages (from_user_id, to_user_id, content) VALUES (?, ?, ?)",
+        (session['user_id'], to_user_id, content)
+    )
+    db.commit()
+    return jsonify({'message': '发送成功'}), 201
 
 # ---------------------------------------------------------------------------
 # 启动应用
