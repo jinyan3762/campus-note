@@ -234,10 +234,12 @@ function spinWheel() {
     const randomSlice = Math.floor(Math.random() * activeTodos.length);
     const sliceAngle = (Math.PI * 2) / activeTodos.length;
 
-    // 目标角度：让指针（顶部）指向选中的扇区
-    // 指针在顶部（-PI/2方向），扇区中心需要对齐到顶部
+    // 目标角度：让指针（顶部，-PI/2方向）指向选中的扇区
     const targetSliceCenter = randomSlice * sliceAngle + sliceAngle / 2;
-    const targetAngle = wheelAngle + spinRounds * Math.PI * 2 + (Math.PI * 2 - targetSliceCenter - wheelAngle % (Math.PI * 2));
+    // 计算需要额外旋转多少弧度，使该扇区中心对准顶部指针
+    let delta = (-Math.PI / 2 - targetSliceCenter - wheelAngle) % (Math.PI * 2);
+    if (delta < 0) delta += Math.PI * 2;
+    const targetAngle = wheelAngle + spinRounds * Math.PI * 2 + delta;
 
     const startAngle = wheelAngle;
     const totalRotation = targetAngle - startAngle;
