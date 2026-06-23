@@ -60,10 +60,10 @@
 ### 步骤
 
 ```bash
-# 步骤 1：安装依赖
+# 步骤 1：安装依赖（在PowerShell窗口执行）
 pip install -r requirements.txt
 
-# 步骤 2：启动应用
+# 步骤 2：启动应用（在PowerShell窗口执行）
 python app.py
 
 # 步骤 3：打开浏览器访问
