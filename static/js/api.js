@@ -3,6 +3,16 @@
  */
 
 /**
+ * HTML 转义（防 XSS）
+ */
+function escapeHtml(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+/**
  * 显示 Toast 提示
  */
 function showToast(message, type = 'info') {
@@ -58,7 +68,9 @@ function showModal(title, contentHtml, onConfirm, confirmText = '确定') {
  */
 function formatTime(dateStr) {
     if (!dateStr) return '';
-    const d = new Date(dateStr + 'Z');
+    // SQLite 存储的是本地时间字符串，直接解析即可
+    const d = new Date(dateStr.replace(' ', 'T'));
+    if (isNaN(d.getTime())) return dateStr;
     const now = new Date();
     const diff = now - d;
     const minutes = Math.floor(diff / 60000);

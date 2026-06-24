@@ -3,11 +3,26 @@
 面向大学生的本地一站式效率工具
 """
 import os
+import sys
 import sqlite3
 import hashlib
 from datetime import datetime
 from functools import wraps
-from flask import Flask, request, jsonify, session, g, render_template
+from flask import Flask, request, jsonify, session, g, redirect, render_template
+
+# ---------------------------------------------------------------------------
+# 修复 Windows 中文主机名导致的 socket.getfqdn UnicodeDecodeError
+# ---------------------------------------------------------------------------
+import socket as _socket
+_orig_getfqdn = _socket.getfqdn
+
+def _patched_getfqdn(name=''):
+    try:
+        return _orig_getfqdn(name)
+    except UnicodeDecodeError:
+        return name or 'localhost'
+
+_socket.getfqdn = _patched_getfqdn
 
 # ---------------------------------------------------------------------------
 # Flask 应用初始化
@@ -172,11 +187,20 @@ def hash_password(password):
 # 登录验证装饰器
 # ---------------------------------------------------------------------------
 def login_required(f):
-    """要求登录的 API 装饰器"""
+    """要求登录的 API 装饰器（返回 JSON 错误）"""
     @wraps(f)
     def decorated(*args, **kwargs):
         if 'user_id' not in session:
             return jsonify({'error': '请先登录'}), 401
+        return f(*args, **kwargs)
+    return decorated
+
+def page_login_required(f):
+    """要求登录的页面装饰器（重定向到首页）"""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect('/')
         return f(*args, **kwargs)
     return decorated
 
@@ -189,31 +213,37 @@ def index():
     return render_template('index.html')
 
 @app.route('/dashboard')
+@page_login_required
 def dashboard():
     """主控面板"""
     return render_template('dashboard.html')
 
 @app.route('/forum')
+@page_login_required
 def forum_page():
     """论坛页面"""
     return render_template('forum.html')
 
 @app.route('/notepad')
+@page_login_required
 def notepad_page():
     """记事本页面"""
     return render_template('notepad.html')
 
 @app.route('/schedule')
+@page_login_required
 def schedule_page():
     """课表页面"""
     return render_template('schedule.html')
 
 @app.route('/todo')
+@page_login_required
 def todo_page():
     """待办事项页面"""
     return render_template('todo.html')
 
 @app.route('/partner')
+@page_login_required
 def partner_page():
     """搭子匹配页面"""
     return render_template('partner.html')
@@ -902,12 +932,13 @@ def api_get_friends():
     db = get_db()
     friends = db.execute('''
         SELECT u.id, u.username, u.nickname, u.interest_tags, u.is_online, u.last_active,
-               f.created_at as friend_since
+               MIN(f.created_at) as friend_since
         FROM friends f
-        JOIN users u ON (f.friend_id = u.id AND f.user_id = ?)
-            OR (f.user_id = u.id AND f.friend_id = ?)
+        JOIN users u ON ((f.friend_id = u.id AND f.user_id = ?)
+                      OR (f.user_id = u.id AND f.friend_id = ?))
         WHERE u.id != ?
-        ORDER BY f.created_at DESC
+        GROUP BY u.id
+        ORDER BY friend_since DESC
     ''', (session['user_id'], session['user_id'], session['user_id'])).fetchall()
     return jsonify([dict(row) for row in friends])
 
@@ -931,6 +962,12 @@ def api_send_friend_request():
     ).fetchone()
     if existing:
         return jsonify({'error': '你们已经是好友了'}), 409
+
+    # 清理旧的已拒绝/已接受请求（允许重新发送）
+    db.execute(
+        "DELETE FROM friend_requests WHERE from_user_id=? AND to_user_id=? AND status!='pending'",
+        (session['user_id'], to_user_id)
+    )
 
     # 检查是否有待处理请求
     pending = db.execute(
@@ -1032,6 +1069,11 @@ def api_remove_friend(friend_id):
         "DELETE FROM friends WHERE (user_id=? AND friend_id=?) OR (user_id=? AND friend_id=?)",
         (session['user_id'], friend_id, friend_id, session['user_id'])
     )
+    # 同时清理相关的好友请求记录
+    db.execute(
+        "DELETE FROM friend_requests WHERE (from_user_id=? AND to_user_id=?) OR (from_user_id=? AND to_user_id=?)",
+        (session['user_id'], friend_id, friend_id, session['user_id'])
+    )
     db.commit()
     return jsonify({'message': '已删除好友'})
 
@@ -1046,4 +1088,4 @@ if __name__ == '__main__':
         print("  浏览器访问: http://127.0.0.1:5000")
         print("  默认账号: admin / 123456")
         print("=" * 50)
-    app.run(host='127.0.0.1', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)

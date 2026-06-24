@@ -437,7 +437,7 @@ async function respondFriendReq(reqId, action) {
     }
 }
 
-async function searchUsers() {
+const searchUsers = debounce(async () => {
     const input = document.getElementById('friend-search-input');
     const q = input.value.trim();
     const container = document.getElementById('user-search-results');
@@ -492,7 +492,7 @@ async function searchUsers() {
     } catch (e) {
         container.innerHTML = '<p style="color:var(--text-muted);text-align:center;">搜索失败</p>';
     }
-}
+}, 300);
 
 async function sendFriendRequest(toUserId, btn) {
     try {
